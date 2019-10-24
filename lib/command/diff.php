@@ -4,7 +4,10 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
+/**
+ * @internal
+ */
+final class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
 {
     protected function configure()
     {
@@ -41,7 +44,7 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
             if (!$input->getOption('unmarked')) {
                 rex_sql::factory()
                     ->setTable($this->migrationTable)
-                    ->setValue('timestamp', $diffTimestamp)
+                    ->setValue('timestamp', $diffTimestamp->format('Y-m-d H:i:s.u'))
                     ->insert();
             }
         }
@@ -49,17 +52,16 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
         if (!$schemaExists) {
             $io->success('Created initial schema and fixtures files.');
         } elseif ($diffTimestamp) {
-            $io->success(sprintf('Updated schema and fixtures file and created diff file "%s.php".', $diffTimestamp));
+            $io->success(sprintf('Updated schema and fixtures file and created diff file "%s.php".', $diffTimestamp->format('Y-m-d H-i-s.u')));
         } else {
             $io->success('Updated schema and fixtures files, nothing changed.');
         }
     }
 
     /**
-     * @param rex_sql_table[]       $tables
-     * @param rex_ydeploy_diff_file $diff
+     * @param rex_sql_table[] $tables
      */
-    private function handleSchema(array $tables, rex_ydeploy_diff_file $diff)
+    private function handleSchema(array $tables, rex_ydeploy_diff_file $diff): void
     {
         $this->addSchemaDiff($diff, $tables);
         $this->createSchema($tables);
@@ -68,15 +70,15 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
     /**
      * @param rex_sql_table[] $tables
      */
-    private function createSchema(array $tables)
+    private function createSchema(array $tables): void
     {
         $schema = [];
 
         foreach ($tables as $table) {
-            $columns = [];
+            $tableName = $table->getName();
 
             foreach ($table->getColumns() as $column) {
-                $columns[$column->getName()] = [
+                $schema[$tableName]['columns'][$column->getName()] = [
                     'type' => $column->getType(),
                     'nullable' => $column->isNullable(),
                     'default' => $column->getDefault(),
@@ -84,20 +86,23 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
                 ];
             }
 
-            $schema[$table->getName()] = [
-                'columns' => $columns,
-                'primaryKey' => $table->getPrimaryKey(),
-            ];
+            $schema[$tableName]['primaryKey'] = $table->getPrimaryKey();
+
+            foreach ($table->getIndexes() as $index) {
+                $schema[$tableName]['indexes'][$index->getName()] = [
+                    'type' => $index->getType(),
+                    'columns' => $index->getColumns(),
+                ];
+            }
         }
 
         rex_file::putConfig($this->addon->getDataPath('schema.yml'), $schema);
     }
 
     /**
-     * @param rex_ydeploy_diff_file $diff
-     * @param rex_sql_table[]       $tables
+     * @param rex_sql_table[] $tables
      */
-    private function addSchemaDiff(rex_ydeploy_diff_file $diff, array $tables)
+    private function addSchemaDiff(rex_ydeploy_diff_file $diff, array $tables): void
     {
         $schema = rex_file::getConfig($this->addon->getDataPath('schema.yml'));
 
@@ -187,6 +192,20 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
                 $diff->setPrimaryKey($tableName, $table->getPrimaryKey());
             }
 
+            foreach ($table->getIndexes() as $indexName => $index) {
+                if (!isset($tableSchema['indexes'][$indexName]) || !$this->indexEqualsSchema($index, $tableSchema['indexes'][$indexName])) {
+                    $diff->ensureIndex($tableName, $index);
+                }
+
+                unset($tableSchema['indexes'][$indexName]);
+            }
+
+            if (isset($tableSchema['indexes'])) {
+                foreach ($tableSchema['indexes'] as $indexName => $indexSchema) {
+                    $diff->removeIndex($tableName, $indexName);
+                }
+            }
+
             unset($schema[$tableName]);
         }
 
@@ -195,7 +214,7 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
         }
     }
 
-    private function columnEqualsSchema(rex_sql_column $column, array $schema)
+    private function columnEqualsSchema(rex_sql_column $column, array $schema): bool
     {
         return
             $column->getType() === $schema['type'] &&
@@ -204,11 +223,17 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
             $column->getExtra() === $schema['extra'];
     }
 
+    private function indexEqualsSchema(rex_sql_index $index, array $schema): bool
+    {
+        return
+            $index->getType() === $schema['type'] &&
+            $index->getColumns() === $schema['columns'];
+    }
+
     /**
-     * @param rex_sql_table[]       $tables
-     * @param rex_ydeploy_diff_file $diff
+     * @param rex_sql_table[] $tables
      */
-    private function handleFixtures(array $tables, rex_ydeploy_diff_file $diff)
+    private function handleFixtures(array $tables, rex_ydeploy_diff_file $diff): void
     {
         $fixtureTables = [];
         foreach ($this->addon->getProperty('config')['fixtures']['tables'] as $name => $config) {
@@ -275,19 +300,19 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
         rex_file::putConfig($this->addon->getDataPath('fixtures.yml'), $newFixtures);
     }
 
-    private function getKey(rex_sql_table $table, array $data)
+    private function getKey(rex_sql_table $table, array $data): array
     {
         return array_intersect_key($data, array_flip($table->getPrimaryKey()));
     }
 
-    private function hash(array $data)
+    private function hash(array $data): string
     {
         ksort($data);
 
         return sha1(json_encode($data));
     }
 
-    private function getData(rex_sql_table $table, array $conditions = null)
+    private function getData(rex_sql_table $table, array $conditions = null): array
     {
         $sql = rex_sql::factory();
 
@@ -328,7 +353,7 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
         return $data;
     }
 
-    private function rowMatchesConditions(array $row, array $conditions)
+    private function rowMatchesConditions(array $row, array $conditions): bool
     {
         foreach ($conditions as $condition) {
             $match = true;
@@ -348,17 +373,11 @@ class rex_ydeploy_command_diff extends rex_ydeploy_command_abstract
         return false;
     }
 
-    /**
-     * @param rex_ydeploy_diff_file $diff
-     *
-     * @return string
-     */
-    private function saveDiff(rex_ydeploy_diff_file $diff)
+    private function saveDiff(rex_ydeploy_diff_file $diff): DateTime
     {
         $timestamp = DateTime::createFromFormat('U.u', sprintf('%.f', microtime(true)));
         $timestamp->setTimezone(new DateTimeZone('UTC'));
-        $timestamp = $timestamp->format('Y-m-d H:i:s.u');
-        $filename = $timestamp.'.php';
+        $filename = $timestamp->format('Y-m-d H-i-s.u').'.php';
         $path = $this->addon->getDataPath('migrations/'.$filename);
 
         if (file_exists($path)) {

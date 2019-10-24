@@ -1,10 +1,24 @@
 package: ydeploy
-version: '1.0-beta1'
+version: '1.0-beta6'
 author: Gregor Harlan
 supportpage: www.redaxo.org/de/forum/
 
 requires:
-    redaxo: ^5.4.0-dev
+    php: ^7.1
+    redaxo: ^5.6.2
+
+conflicts:
+    packages:
+        developer: '<3.7'
+
+console_commands:
+    ydeploy:diff: rex_ydeploy_command_diff
+    ydeploy:migrate: rex_ydeploy_command_migrate
+
+pages:
+    system/ydeploy:
+        title: YDeploy
+        pjax: false
 
 config:
     fixtures:
@@ -24,7 +38,17 @@ config:
             redactor2_profiles: ~
             yform_field: ~
             yform_table: ~
-
-console_commands:
-    ydeploy:diff: rex_ydeploy_command_diff
-    ydeploy:migrate: rex_ydeploy_command_migrate
+    protected_pages:
+        install: ~
+        markitup: ~
+        media_manager: ~
+        metainfo: ~
+        modules: ~
+        packages: ~
+        redactor2: ~
+        templates: ~
+        yform/manager:
+            - table_edit
+            - table_migrate
+            - tableset_import
+            - table_field
