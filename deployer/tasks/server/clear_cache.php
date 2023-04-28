@@ -48,19 +48,28 @@ task('server:clear_cache', new class() {
 
     private function clearWebPhpCache(): void
     {
-        cd('{{release_path}}/{{base_dir}}');
+        $paths = ['{{current_path}}/{{base_dir}}'];
+
+        if (has('previous_release')) {
+            $paths[] = '{{previous_release}}/{{base_dir}}';
+        }
 
         $dir = '_clear_cache';
         $htaccessFile = $dir.'/.htaccess';
         $phpFile = $dir.'/_clear_cache.php';
 
         try {
-            run('mkdir -p '.$dir);
-            run('echo "Require all granted" > '.$htaccessFile);
-            run('echo '.escapeshellarg("<?php\n\n".$this->getPhpClearCacheCode()).' > '.$phpFile);
+            foreach ($paths as $path) {
+                run('mkdir -p '.$path.$dir);
+                run('echo "Require all granted" > '.$path.$htaccessFile);
+                run('echo '.escapeshellarg("<?php\n\n".$this->getPhpClearCacheCode()).' > '.$path.$phpFile);
+            }
+
             run("curl -fsS {{url}}/$phpFile");
         } finally {
-            run('rm -rf '.$dir);
+            foreach ($paths as $path) {
+                run('rm -rf '.$path.$dir);
+            }
         }
     }
 
@@ -72,11 +81,11 @@ task('server:clear_cache', new class() {
     private function getPhpClearCacheCode(): string
     {
         return <<<'PHP'
-clearstatcache(true);
+            clearstatcache(true);
 
-if (function_exists('opcache_reset')) {
-    opcache_reset();
-}
-PHP;
+            if (function_exists('opcache_reset')) {
+                opcache_reset();
+            }
+            PHP;
     }
 });
