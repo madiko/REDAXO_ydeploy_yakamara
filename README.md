@@ -31,23 +31,21 @@ Es ist aber auch geeignet, um Datenbank-Änderungen der anderen Entwickler in di
 
 Details des Kommandos erhält man über `redaxo/bin/console help ydeploy:migrate`.
 
-Setup für deployer
-------------------
+Deployment über deployer
+------------------------
 
 Zunächst sollte man sich mit den Grundlagen von deployer vertraut machen: https://deployer.org
 
-Das Addon liefert deployer selbst nicht mit, es sollte vorzugsweise global mittels Composer installiert werden:
+Das Addon liefert deployer selbst nicht mit. Es kann über verschiedene Wege instaliert werden:
 
-```
-composer global require deployer/deployer
-```
-
-Mehr Infos: https://deployer.org/docs/installation
+* Lokal im Projekt (ggf. in separatem `.tools`-Ordner: `composer require deployer/deployer`
+* Global über composer: `composer global require deployer/deployer`
+* Als Phar-Archive: https://deployer.org/download
 
 ### Konfiguration
 
 Im Projekt-Root sollte die Konfigurationsdatei `deploy.php`  angelegt werden, die die auf REDAXO abgestimmte 
-[Basis-Konfiguration](https://github.com/yakamara/ydeploy/blob/master/deploy.php) aus diesem Addon einbindet:
+[Basis-Konfiguration](https://github.com/yakamara/ydeploy/blob/main/deploy.php) aus diesem Addon einbindet:
 
 ```php
 <?php
@@ -59,22 +57,24 @@ if ('cli' !== PHP_SAPI) {
 }
 
 // Der Pfad ist ggf. anzupassen, falls der Projekt-Root nicht dem REDAXO-Root entspricht
-require __DIR__.'/redaxo/src/addons/ydeploy/deploy.php';
+// Falls die Yak-Struktur (https://github.com/yakamara/yak) verwendet wird, sollte stattdessen die `deploy_yak.php` eingebunden werden
+// require __DIR__ . '/redaxo/src/addons/ydeploy/deploy_yak.php';
+require __DIR__ . '/redaxo/src/addons/ydeploy/deploy.php';
 
 set('repository', 'git@github.com:user/repo.git');
 
 host('servername')
-    ->hostname('example.com')
-    ->set('deploy_path', '/var/www/com.example')
+    ->setHostname('example.com')
+    ->setDeployPath('/var/www/com.example')
 ;
 ```
 
 In dieser Datei kann die Konfiguration individuell auf das Projekt abgestimmt werden, sowie durch eigene weitere Tasks
 ergänzt werden.
 Siehe dazu: 
-* https://deployer.org/docs/configuration 
-* https://deployer.org/docs/hosts
-* https://deployer.org/docs/tasks
+* https://deployer.org/docs/7.x/basics
+* https://deployer.org/docs/7.x/hosts
+* https://deployer.org/docs/7.x/tasks
 
 ### .gitignore
 
@@ -92,6 +92,16 @@ Die folgende `.gitignore` hat sich als Basis bewährt bei Nutzung von deployer:
 !/redaxo/data/addons/mform/*
 !/redaxo/data/addons/ydeploy/*
 /redaxo/data/core/*
+/redaxo/data/log/*
 ```
 
 Sollte REDAXO nicht direkt im Projekt-Root liegen, müssen die Pfade entsprechend angepasst werden.
+
+### Deployment
+
+Führe `dep deploy` aus, um das Deployment auf den Zielserver zu starten. Dieser Befehl besteht aus zwei Teilen, die sich auch einzeln ausführen lassen:
+
+1. Lokal vorbereiten: `dep build local`
+2. Vorbereitetes Paket auf den Server spielen: `dep release [host]`
+
+So lässt sich bspw. über `dep deploy staging` auf den `staging`-Server deployen, testen und anschließend mit dem bereits vorliegenden Build auf den Produktivserver aufspielen: `dep release production`.
