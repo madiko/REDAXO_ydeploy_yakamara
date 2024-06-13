@@ -3,7 +3,6 @@
 namespace Deployer;
 
 use Deployer\Task\Context;
-
 use Symfony\Component\Console\Input\ArgvInput;
 
 use function dirname;
@@ -48,7 +47,14 @@ if (in_array($command, ['build', 'setup', 'worker'], true)) {
     host('local');
 }
 
-set('branch', static fn () => runLocally('{{bin/git}} rev-parse --abbrev-ref HEAD'));
+set('branch', static function () {
+    $branch = null;
+    on(host('local'), static function () use (&$branch) {
+        $branch = run('{{bin/git}} rev-parse --abbrev-ref HEAD');
+    });
+
+    return $branch;
+});
 
 $baseDir = $rootPath;
 if (str_starts_with($baseDir, getcwd())) {

@@ -68,7 +68,7 @@ task('setup', new class() {
             writeln('The data can be imported from one of the hosts, or from dump file.');
             writeln('');
 
-            if (!askConfirmation('Import from host')) {
+            if (!askConfirmation('Import from host', true)) {
                 return $this->chooseSourceFile();
             }
 
@@ -102,7 +102,7 @@ task('setup', new class() {
     {
         writeln('');
 
-        do {
+        while (true) {
             $file = ask('Dump file', getcwd() . '/dump.sql');
             writeln('');
 
@@ -112,7 +112,7 @@ task('setup', new class() {
 
             writeln('<error>The file does not exist: ' . $file . '</error>');
             writeln('');
-        } while (true);
+        }
     }
 
     private function setConfigYml(): void
@@ -208,7 +208,10 @@ task('setup', new class() {
 
             // export source database
             onHost($this->source, function () use ($path) {
-                cd('{{current_path}}');
+                if (!$this->source instanceof Localhost) {
+                    cd('{{current_path}}');
+                }
+
                 run('{{bin/php}} {{bin/console}} db:connection-options | xargs {{bin/mysqldump}} > ' . escapeshellarg($path));
 
                 if ($this->source instanceof Localhost) {
