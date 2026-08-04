@@ -1,6 +1,23 @@
 Changelog
 =========
 
+Version 2.1.1 – 22.07.2025
+--------------------------
+
+### Bugfixes
+
+* Korrektur für Upgrade von v1, damit die Releasenummerierung wieder korrekt fortgesetzt wird
+* Allgemeineren `gulp`-Pfad `node_modules/.bin/gulp` nutzen
+
+
+Version 2.1.0 – 04.06.2025
+--------------------------
+
+### Neu
+
+* Migration: Es werden Meldungen beim Start und Ende jeder Migrationsdatei ausgegeben
+
+
 Version 2.0.2 – 23.05.2024
 --------------------------
 
